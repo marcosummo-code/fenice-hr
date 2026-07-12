@@ -13,15 +13,16 @@ jobs:
     - name: Checkout codice
       uses: actions/checkout@v4
       
-    - name: Setup Flutter
+    - name: Setup Flutter (ULTIMA VERSIONE STABILE)
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.27.4'
         channel: 'stable'
         cache: true
         
-    - name: Flutter version
-      run: flutter --version
+    - name: Verifica versioni
+      run: |
+        flutter --version
+        dart --version
       
     - name: Installa dipendenze
       run: flutter pub get
