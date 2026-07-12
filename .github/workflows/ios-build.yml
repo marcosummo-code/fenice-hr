@@ -1,0 +1,49 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:  # Permette avvio manuale
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v4
+      
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'
+        channel: 'stable'
+        cache: true
+        
+    - name: Installa dipendenze
+      run: flutter pub get
+      
+    - name: Configura iOS
+      run: |
+        cd ios
+        pod install
+        cd ..
+        
+    - name: Build iOS (senza firma)
+      run: flutter build ios --release --no-codesign
+      
+    - name: Crea archivio IPA
+      run: |
+        cd build/ios/iphoneos
+        mkdir Payload
+        cd Payload
+        ln -s ../Runner.app
+        cd ..
+        zip -r app.ipa Payload
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-app
+        path: build/ios/iphoneos/app.ipa
+        retention-days: 30
