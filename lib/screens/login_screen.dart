@@ -84,13 +84,14 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 48),
               TextField(
                 controller: _pinController,
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.text,
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'PIN',
                   hintText: 'Inserisci il tuo PIN',
                   prefixIcon: const Icon(Icons.lock),
                   border: const OutlineInputBorder(),
+                  helperText: 'Puoi usare lettere e numeri',
                   errorText: _errorMessage,
                 ),
                 onSubmitted: (_) => _login(),

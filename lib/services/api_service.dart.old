@@ -34,6 +34,7 @@ class ApiService {
   static Future<bool> inviaTimbratura(Timbratura timbratura) async {
     try {
       print('Chiamata API: ${ApiConfig.baseUrl}/timbra');
+
       final response = await http
           .post(
             Uri.parse('${ApiConfig.baseUrl}/timbra'),
@@ -54,6 +55,7 @@ class ApiService {
 
       print('Risposta API: ${response.statusCode}');
       print('Body: ${response.body}');
+
       return response.statusCode == 200;
     } catch (e) {
       print('Errore invio timbratura: $e');
@@ -61,6 +63,7 @@ class ApiService {
     }
   }
 
+  // Aggiungi questo metodo per verificare ferie
   static Future<Map<String, dynamic>> verificaFerie(int dipendenteId) async {
     try {
       final response = await http
@@ -102,20 +105,16 @@ class ApiService {
 
   static Future<bool> checkConnessione() async {
     try {
-      print('🔍 Verifica connessione a: ${ApiConfig.baseUrl}/health');
       final response = await http
           .get(Uri.parse('${ApiConfig.baseUrl}/health'))
           .timeout(Duration(seconds: 5));
-      print('✅ Risposta health: ${response.statusCode}');
-      print('📄 Body: ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Errore connessione: $e');
       return false;
     }
   }
-  // ===== METODI PER FERIE E NOTIFICHE =====
 
+  // Recupera statistiche ferie di un dipendente
   static Future<Map<String, dynamic>> getStatisticheFerie(int dipendenteId) async {
     try {
       final response = await http
@@ -124,7 +123,7 @@ class ApiService {
             headers: {'x-api-token': ApiConfig.apiToken},
           )
           .timeout(const Duration(seconds: 5));
-
+      
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -135,6 +134,7 @@ class ApiService {
     }
   }
 
+  // Recupera le ferie di un dipendente specifico
   static Future<List<Map<String, dynamic>>> getMieFerie(int dipendenteId) async {
     try {
       final response = await http
@@ -143,9 +143,10 @@ class ApiService {
             headers: {'x-api-token': ApiConfig.apiToken},
           )
           .timeout(const Duration(seconds: 5));
-
+      
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
+        // Filtra solo le ferie del dipendente corrente
         return data
             .where((f) => f['dipendente_id'] == dipendenteId)
             .map((f) => f as Map<String, dynamic>)
@@ -157,7 +158,7 @@ class ApiService {
       return [];
     }
   }
-
+  // Richiedi ferie/permesso
   static Future<Map<String, dynamic>> richiediFerie({
     required int dipendenteId,
     required String tipo,
@@ -194,26 +195,9 @@ class ApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getNotificheDipendente(int dipendenteId) async {
-    try {
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/notifiche/dipendente/$dipendenteId'),
-            headers: {'x-api-token': ApiConfig.apiToken},
-          )
-          .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((n) => n as Map<String, dynamic>).toList();
-      }
-      return [];
-    } catch (e) {
-      print('Errore recupero notifiche: $e');
-      return [];
-    }
-  }
 
+  // Conta notifiche non lette
   static Future<int> contaNotificheNonLette(int dipendenteId) async {
     try {
       final response = await http
@@ -234,6 +218,109 @@ class ApiService {
     }
   }
 
+  // Recupera statistiche ferie di un dipendente
+  static Future<Map<String, dynamic>> getStatisticheFerie(int dipendenteId) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/ferie/statistiche/$dipendenteId'),
+            headers: {'x-api-token': ApiConfig.apiToken},
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {};
+    } catch (e) {
+      print('Errore recupero statistiche ferie: $e');
+      return {};
+    }
+  }
+
+  // Recupera le ferie di un dipendente specifico
+  static Future<List<Map<String, dynamic>>> getMieFerie(int dipendenteId) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/ferie/tutte'),
+            headers: {'x-api-token': ApiConfig.apiToken},
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .where((f) => f['dipendente_id'] == dipendenteId)
+            .map((f) => f as Map<String, dynamic>)
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('Errore recupero mie ferie: $e');
+      return [];
+    }
+  }
+
+  // Richiedi ferie/permesso
+  static Future<Map<String, dynamic>> richiediFerie({
+    required int dipendenteId,
+    required String tipo,
+    required String dataInizio,
+    required String dataFine,
+    String? note,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/ferie'),
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-token': ApiConfig.apiToken,
+            },
+            body: jsonEncode({
+              'dipendente_id': dipendenteId,
+              'tipo': tipo,
+              'data_inizio': dataInizio,
+              'data_fine': dataFine,
+              'note': note,
+              'stato': 'richiesta',
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'successo': false, 'errore': 'Errore server'};
+    } catch (e) {
+      print('Errore richiesta ferie: $e');
+      return {'successo': false, 'errore': e.toString()};
+    }
+  }
+
+  // Recupera notifiche di un dipendente
+  static Future<List<Map<String, dynamic>>> getNotificheDipendente(int dipendenteId) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/notifiche/dipendente/$dipendenteId'),
+            headers: {'x-api-token': ApiConfig.apiToken},
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((n) => n as Map<String, dynamic>).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Errore recupero notifiche: $e');
+      return [];
+    }
+  }
+
+  // Segna notifica come letta
   static Future<bool> segnaNotificaComeLetta(int notificaId) async {
     try {
       final response = await http
@@ -249,4 +336,5 @@ class ApiService {
       return false;
     }
   }
+
 }

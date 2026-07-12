@@ -1,0 +1,551 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../models/dipendente.dart';
+import '../services/api_service.dart';
+import 'richiesta_ferie_screen.dart';
+
+class FerieScreen extends StatefulWidget {
+  final Dipendente dipendente;
+  const FerieScreen({super.key, required this.dipendente});
+
+  @override
+  State<FerieScreen> createState() => _FerieScreenState();
+}
+
+class _FerieScreenState extends State<FerieScreen> {
+  Map<String, dynamic> _statistiche = {};
+  List<Map<String, dynamic>> _ferie = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _caricaDati();
+  }
+
+  Future<void> _caricaDati() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final results = await Future.wait([
+        ApiService.getStatisticheFerie(widget.dipendente.id),
+        ApiService.getMieFerie(widget.dipendente.id),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _statistiche = results[0] as Map<String, dynamic>;
+          _ferie = results[1] as List<Map<String, dynamic>>;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Errore caricamento dati ferie: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Le mie Ferie'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Aggiorna',
+            onPressed: _caricaDati,
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RichiestaFerieScreen(dipendente: widget.dipendente),
+            ),
+          );
+          if (result == true) {
+            _caricaDati();
+          }
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Nuova richiesta'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _caricaDati,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildStatCard(),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Storico richieste',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_ferie.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(
+                          child: Text(
+                            'Nessuna richiesta di ferie',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._ferie.map((f) => _buildFerieCard(f, dateFormat)),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildStatCard() {
+    final ferie = _statistiche['ferie'] as Map<String, dynamic>? ?? {};
+    final permesso = _statistiche['permesso'] as Map<String, dynamic>? ?? {};
+    final malattia = _statistiche['malattia'] as Map<String, dynamic>? ?? {};
+    final saldo = _statistiche['saldo'] as Map<String, dynamic>? ?? {};
+    final anno = _statistiche['anno'] ?? DateTime.now().year;
+    final dataAssunzione = _statistiche['data_assunzione'] as String?;
+    final dataInserimentoConfig = _statistiche['data_inserimento_config'] as String?;
+    final mesiDallInserimento = (_statistiche['mesi_dall_inserimento'] ?? 0).toDouble();
+
+    final ferieSaldoIniziale = (ferie['saldo_iniziale'] ?? 0).toDouble();
+    final ferieMensili = (ferie['maturazione_mensile'] ?? 0).toDouble();
+    final ferieMaturateDallInserimento = (ferie['maturate_dall_inserimento'] ?? 0).toDouble();
+    final ferieUsateDallInserimento = (ferie['usate_dall_inserimento'] ?? 0).toDouble();
+
+    final permSaldoIniziale = (permesso['saldo_iniziale'] ?? 0).toDouble();
+    final permMensili = (permesso['maturazione_mensile'] ?? 0).toDouble();
+    final permMaturatiDallInserimento = (permesso['maturate_dall_inserimento'] ?? 0).toDouble();
+    final permUsatiDallInserimento = (permesso['usate_dall_inserimento'] ?? 0).toDouble();
+
+    final ferieDisponibili = (saldo['ferie_disponibili'] ?? 0).toDouble();
+    final permDisponibili = (saldo['permesso_disponibile'] ?? 0).toDouble();
+
+    final malattiaUsate = (malattia['usate'] ?? 0).toDouble();
+
+    return Card(
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text(
+                  'Saldo Attuale',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            if (dataAssunzione != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Assunzione: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(dataAssunzione))}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+            if (dataInserimentoConfig != null) ...[
+              Text(
+                'Configurazione: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(dataInserimentoConfig))} • $mesiDallInserimento mesi',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+            const SizedBox(height: 20),
+            _buildSaldoCard(
+              label: 'Ferie',
+              icon: Icons.beach_access,
+              color: Colors.blue,
+              saldoIniziale: ferieSaldoIniziale,
+              maturazioneMensile: ferieMensili,
+              maturateDallInserimento: ferieMaturateDallInserimento,
+              usateDallInserimento: ferieUsateDallInserimento,
+              disponibili: ferieDisponibili,
+              unit: 'giorni',
+            ),
+            const SizedBox(height: 16),
+            _buildSaldoCard(
+              label: 'Permessi (ROL)',
+              icon: Icons.access_time,
+              color: Colors.orange,
+              saldoIniziale: permSaldoIniziale,
+              maturazioneMensile: permMensili,
+              maturateDallInserimento: permMaturatiDallInserimento,
+              usateDallInserimento: permUsatiDallInserimento,
+              disponibili: permDisponibili,
+              unit: 'ore',
+            ),
+            if (malattiaUsate > 0) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.local_hospital, color: Colors.red, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Malattia: '),
+                  Text(
+                    '${malattiaUsate.toStringAsFixed(1)} giorni',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaldoCard({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required double saldoIniziale,
+    required double maturazioneMensile,
+    required double maturateDallInserimento,
+    required double usateDallInserimento,
+    required double disponibili,
+    required String unit,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+              Text(
+                '+${maturazioneMensile.toStringAsFixed(2)}/mese',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMiniStat(
+                  label: 'Saldo iniziale',
+                  value: saldoIniziale.toStringAsFixed(1),
+                  unit: unit,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              Expanded(
+                child: _buildMiniStat(
+                  label: 'Maturati',
+                  value: maturateDallInserimento.toStringAsFixed(1),
+                  unit: unit,
+                  color: Colors.green,
+                ),
+              ),
+              Expanded(
+                child: _buildMiniStat(
+                  label: 'Usati',
+                  value: usateDallInserimento.toStringAsFixed(1),
+                  unit: unit,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Disponibili: ${disponibili.toStringAsFixed(1)} $unit',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat({
+    required String label,
+    required String value,
+    required String unit,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+        Text(
+          unit,
+          style: TextStyle(
+            fontSize: 9,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFerieCard(Map<String, dynamic> ferie, DateFormat dateFormat) {
+    final tipo = ferie['tipo'] as String? ?? 'ferie';
+    final stato = ferie['stato'] as String? ?? 'approvata';
+    final dataInizio = DateTime.tryParse(ferie['data_inizio'] ?? '');
+    final dataFine = DateTime.tryParse(ferie['data_fine'] ?? '');
+    final note = ferie['note'] as String?;
+    final motivoRifiuto = ferie['motivo_rifiuto'] as String?;
+
+    int giorni = 0;
+    if (dataInizio != null && dataFine != null) {
+      giorni = dataFine.difference(dataInizio).inDays + 1;
+    }
+
+    Color tipoColor;
+    IconData tipoIcon;
+    String tipoLabel;
+    switch (tipo) {
+      case 'ferie':
+        tipoColor = Colors.blue;
+        tipoIcon = Icons.beach_access;
+        tipoLabel = 'Ferie';
+        break;
+      case 'permesso':
+        tipoColor = Colors.orange;
+        tipoIcon = Icons.access_time;
+        tipoLabel = 'Permesso';
+        break;
+      case 'malattia':
+        tipoColor = Colors.red;
+        tipoIcon = Icons.local_hospital;
+        tipoLabel = 'Malattia';
+        break;
+      default:
+        tipoColor = Colors.grey;
+        tipoIcon = Icons.event;
+        tipoLabel = tipo;
+    }
+
+    Color statoColor;
+    IconData statoIcon;
+    String statoLabel;
+    switch (stato) {
+      case 'richiesta':
+        statoColor = Colors.amber.shade700;
+        statoIcon = Icons.hourglass_top;
+        statoLabel = 'In attesa';
+        break;
+      case 'approvata':
+        statoColor = Colors.green;
+        statoIcon = Icons.check_circle;
+        statoLabel = 'Approvata';
+        break;
+      case 'rifiutata':
+        statoColor = Colors.red;
+        statoIcon = Icons.cancel;
+        statoLabel = 'Rifiutata';
+        break;
+      default:
+        statoColor = Colors.grey;
+        statoIcon = Icons.circle;
+        statoLabel = stato;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: tipoColor,
+                  child: Icon(tipoIcon, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tipoLabel,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '$giorni ${giorni == 1 ? 'giorno' : 'giorni'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statoColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statoColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statoIcon, color: statoColor, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        statoLabel,
+                        style: TextStyle(
+                          color: statoColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  dataInizio != null && dataFine != null
+                      ? '${dateFormat.format(dataInizio)} - ${dateFormat.format(dataFine)}'
+                      : 'Date non disponibili',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            if (note != null && note.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.note, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      note,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (stato == 'rifiutata' && motivoRifiuto != null && motivoRifiuto.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.red.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Motivo: $motivoRifiuto',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

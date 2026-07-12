@@ -161,6 +161,34 @@ class DatabaseService {
     return maps.map((json) => Timbratura.fromLocalJson(json)).toList();
   }
 
+  // Recupera l'ultima timbratura di un dipendente per una data specifica
+  static Future<Timbratura?> getUltimaTimbraturaPerData(
+    int dipendenteId,
+    DateTime data,
+  ) async {
+    final db = await database;
+    final dataInizio = DateTime(data.year, data.month, data.day, 0, 0, 0);
+    final dataFine = DateTime(data.year, data.month, data.day, 23, 59, 59);
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'timbrature',
+      where: 'dipendente_id = ? AND data_ora >= ? AND data_ora <= ?',
+      whereArgs: [
+        dipendenteId,
+        dataInizio.toIso8601String(),
+        dataFine.toIso8601String(),
+      ],
+      orderBy: 'data_ora DESC',
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return Timbratura.fromLocalJson(maps.first);
+  }
+
+
+
+
   // ===== UTENTE LOCALE (per login offline) =====
   static Future<void> salvaUtenteLocale(
     Dipendente dipendente,

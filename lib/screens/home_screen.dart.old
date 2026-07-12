@@ -7,8 +7,6 @@ import '../models/timbratura.dart';
 import '../services/api_service.dart';
 import '../services/database_service.dart';
 import 'storico_screen.dart';
-import 'ferie_screen.dart';
-import 'notifiche_screen.dart';
 import 'dart:async';
 import 'dart:io';
 import '../services/export_service.dart';
@@ -16,9 +14,14 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'ferie_screen.dart';
+
+
+
 
 class HomeScreen extends StatefulWidget {
   final Dipendente dipendente;
+
   const HomeScreen({super.key, required this.dipendente});
 
   @override
@@ -32,17 +35,16 @@ class _HomeScreenState extends State<HomeScreen> {
   int _pendingCount = 0;
   bool _isRestoringFromServer = false;
   String _restoreStatus = 'Sincronizzazione iniziale non avviata';
-  String? _ultimaTimbraturaTipo;
-  DateTime? _ultimaTimbraturaData;
-  int _notificheNonLette = 0;
+  String? _ultimaTimbraturaTipo; 
+  DateTime? _ultimaTimbraturaData; 
+
 
   @override
   void initState() {
     super.initState();
     _updateTime();
     _loadPendingCount();
-    _caricaStatoTimbratura();
-    _loadNotificheCount();
+    _caricaStatoTimbratura();  // <-- AGGIUNGI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_sincronizzaDalServer());
     });
@@ -66,31 +68,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _caricaStatoTimbratura() async {
-    final oggi = DateTime.now();
-    final ultima = await DatabaseService.getUltimaTimbraturaPerData(
-      widget.dipendente.id,
-      oggi,
-    );
-
-    if (mounted) {
-      setState(() {
-        _ultimaTimbraturaTipo = ultima?.tipo;
-        _ultimaTimbraturaData = ultima?.dataOra;
-      });
-    }
-  }
-
-  Future<void> _loadNotificheCount() async {
-    final count = await ApiService.contaNotificheNonLette(widget.dipendente.id);
-    if (mounted) {
-      setState(() {
-        _notificheNonLette = count;
-      });
-    }
-  }
-
   Future<void> _esportaTimbrature() async {
+    // Carica tutte le timbrature locali del dipendente
     final tutte = await DatabaseService.getTutteTimbratureLocali();
     final mieTimbrature = tutte
         .where((t) => t.dipendenteId == widget.dipendente.id)
@@ -112,17 +91,23 @@ class _HomeScreenState extends State<HomeScreen> {
       final dateFormat = DateFormat('yyyyMMdd');
       final nomeFile =
           'Timbrature_${widget.dipendente.cognome}_${dateFormat.format(DateTime.now())}';
+
       final filePath = await ExportService.esportaTimbrature(
         mieTimbrature,
         nomeFile,
       );
 
       if (filePath != null && mounted) {
+        // Condividi il file
+        assert([XFile(filePath)].isNotEmpty);
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile(filePath)],
             subject: 'Timbrature ${widget.dipendente.nomeCompleto}',
             text: 'Le mie timbrature',
+            sharePositionOrigin: null,
+            fileNameOverrides: null,
+            downloadFallbackEnabled: Share.downloadFallbackEnabled,
           ),
         );
       } else if (mounted) {
@@ -150,6 +135,22 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
+
+  Future<void> _caricaStatoTimbratura() async {
+    final oggi = DateTime.now();
+    final ultima = await DatabaseService.getUltimaTimbraturaPerData(
+      widget.dipendente.id,
+      oggi,
+    );
+
+    if (mounted) {
+      setState(() {
+        _ultimaTimbraturaTipo = ultima?.tipo;
+        _ultimaTimbraturaData = ultima?.dataOra;
+      });
+    }
+  }
+
 
   Future<void> _timbra(String tipo) async {
     Position? posizione;
@@ -189,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         messaggio += '\nPosizione non disponibile';
       }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(messaggio),
@@ -217,6 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
           posizione.latitude,
           posizione.longitude,
         );
+
         await DatabaseService.aggiornaCoordinateTimbratura(
           timbratura.id!,
           latitudine: posizione.latitude,
@@ -246,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _sincronizzaDalServer() async {
     if (!mounted) return;
+
     setState(() {
       _isRestoringFromServer = true;
       _restoreStatus = 'Sincronizzazione iniziale in corso...';
@@ -275,9 +279,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final List<dynamic> data = jsonDecode(body);
         int inserite = 0;
+
         for (var item in data) {
           final latitudine = _parseCoordinate(item['latitudine']);
           final longitudine = _parseCoordinate(item['longitudine']);
+
           final timbratura = Timbratura(
             id: item['id'],
             dipendenteId: item['dipendente_id'],
@@ -341,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _sincronizza() async {
     if (_isSyncing) return;
+
     setState(() {
       _isSyncing = true;
     });
@@ -363,6 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       print('Trovate ${nonSincronizzate.length} timbrature da sincronizzare');
+
       int sincronizzate = 0;
       int fallite = 0;
 
@@ -372,6 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
             'Invio timbratura ${timbratura.id}: ${timbratura.tipo} del ${timbratura.dataOra}',
           );
           final successo = await ApiService.inviaTimbratura(timbratura);
+
           if (successo) {
             await DatabaseService.marcaComeSincronizzata(timbratura.id!);
             sincronizzate++;
@@ -404,6 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         }
+
         if (fallite > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -439,60 +449,18 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text(widget.dipendente.nomeCompleto),
         actions: [
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications),
-                tooltip: 'Notifiche',
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => NotificheScreen(dipendente: widget.dipendente),
-                    ),
-                  );
-                  _loadNotificheCount();
-                },
+         IconButton(
+          icon: const Icon(Icons.beach_access),
+           tooltip: 'Le mie ferie',
+           onPressed: () {
+           Navigator.push(
+           context,
+           MaterialPageRoute(
+         builder: (context) => FerieScreen(dipendente: widget.dipendente),
               ),
-              if (_notificheNonLette > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 20,
-                      minHeight: 20,
-                    ),
-                    child: Text(
-                      '$_notificheNonLette',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.beach_access),
-            tooltip: 'Le mie ferie',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FerieScreen(dipendente: widget.dipendente),
-                ),
-              );
-            },
-          ),
+            );
+         },
+       ),
           IconButton(
             icon: const Icon(Icons.download),
             tooltip: 'Esporta timbrature',
@@ -517,6 +485,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               _timer?.cancel();
               Navigator.pop(context);
+
+              // Forza la chiusura dopo un breve delay
               Future.delayed(const Duration(milliseconds: 100), () {
                 exit(0);
               });
@@ -530,6 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Orologio
               Text(
                 timeFormat.format(_currentTime),
                 style: const TextStyle(
@@ -582,51 +553,57 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              _buildStatoCard(),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildTimbraButton(
-                    'ENTRATA',
-                    Colors.green,
-                    Icons.login,
-                    () => _timbra('entrata'),
-                    enabled: _ultimaTimbraturaTipo == null,
-                  ),
-                  _buildTimbraButton(
-                    'USCITA',
-                    Colors.red,
-                    Icons.logout,
-                    () => _timbra('uscita'),
-                    enabled: _ultimaTimbraturaTipo == 'entrata' ||
-                        _ultimaTimbraturaTipo == 'pausa_fine',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildTimbraButton(
-                    'PAUSA',
-                    Colors.orange,
-                    Icons.coffee,
-                    () => _timbra('pausa_inizio'),
-                    enabled: _ultimaTimbraturaTipo == 'entrata' ||
-                        _ultimaTimbraturaTipo == 'pausa_fine',
-                  ),
-                  _buildTimbraButton(
-                    'FINE PAUSA',
-                    Colors.blue,
-                    Icons.coffee_maker,
-                    () => _timbra('pausa_fine'),
-                    enabled: _ultimaTimbraturaTipo == 'pausa_inizio',
-                  ),
-                ],
-              ),
               const SizedBox(height: 36),
+
+        // Stato corrente
+        _buildStatoCard(),
+        const SizedBox(height: 24),
+
+        // Pulsanti timbratura (abilitazione logica)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildTimbraButton(
+              'ENTRATA',
+              Colors.green,
+              Icons.login,
+              () => _timbra('entrata'),
+              enabled: _ultimaTimbraturaTipo == null,
+            ),
+            _buildTimbraButton(
+              'USCITA',
+              Colors.red,
+              Icons.logout,
+              () => _timbra('uscita'),
+              enabled: _ultimaTimbraturaTipo == 'entrata' ||
+                       _ultimaTimbraturaTipo == 'pausa_fine',
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildTimbraButton(
+              'PAUSA',
+              Colors.orange,
+              Icons.coffee,
+              () => _timbra('pausa_inizio'),
+              enabled: _ultimaTimbraturaTipo == 'entrata' ||
+                       _ultimaTimbraturaTipo == 'pausa_fine',
+            ),
+            _buildTimbraButton(
+              'FINE PAUSA',
+              Colors.blue,
+              Icons.coffee_maker,
+              () => _timbra('pausa_fine'),
+              enabled: _ultimaTimbraturaTipo == 'pausa_inizio',
+            ),
+          ],
+        ),
+              const SizedBox(height: 48),
+
+              // Status sincronizzazione
               if (_pendingCount > 0)
                 Card(
                   color: Colors.orange.shade100,
@@ -645,12 +622,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+
               if (_isSyncing)
                 const Padding(
                   padding: EdgeInsets.all(16.0),
                   child: CircularProgressIndicator(),
                 ),
+
               const SizedBox(height: 24),
+
+              // Pulsante sincronizza manuale
               ElevatedButton.icon(
                 onPressed: _isSyncing ? null : _sincronizza,
                 icon: const Icon(Icons.sync),
@@ -754,6 +735,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
+
   Widget _buildTimbraButton(
     String label,
     Color color,
@@ -786,4 +769,40 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _buildTimbraButton(
+    String label,
+    Color color,
+    IconData icon,
+    VoidCallback onPressed, {
+    bool enabled = true,
+  }) {
+    return ElevatedButton(
+      onPressed: enabled ? onPressed : null,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: enabled ? color : Colors.grey.shade300,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 24, color: enabled ? Colors.white : Colors.grey.shade500),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: enabled ? Colors.white : Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
 }

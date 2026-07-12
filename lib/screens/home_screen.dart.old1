@@ -118,11 +118,15 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (filePath != null && mounted) {
+        assert([XFile(filePath)].isNotEmpty);
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile(filePath)],
             subject: 'Timbrature ${widget.dipendente.nomeCompleto}',
             text: 'Le mie timbrature',
+            sharePositionOrigin: null,
+            fileNameOverrides: null,
+            downloadFallbackEnabled: Share.downloadFallbackEnabled,
           ),
         );
       } else if (mounted) {
@@ -530,6 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Orologio
               Text(
                 timeFormat.format(_currentTime),
                 style: const TextStyle(
@@ -583,8 +588,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Stato corrente
               _buildStatoCard(),
               const SizedBox(height: 24),
+
+              // Pulsanti timbratura (abilitazione logica)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -627,6 +636,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 36),
+
+              // Status sincronizzazione
               if (_pendingCount > 0)
                 Card(
                   color: Colors.orange.shade100,
@@ -651,6 +662,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: CircularProgressIndicator(),
                 ),
               const SizedBox(height: 24),
+
+              // Pulsante sincronizza manuale
               ElevatedButton.icon(
                 onPressed: _isSyncing ? null : _sincronizza,
                 icon: const Icon(Icons.sync),
