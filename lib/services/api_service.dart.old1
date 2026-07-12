@@ -102,16 +102,19 @@ class ApiService {
 
   static Future<bool> checkConnessione() async {
     try {
+      print('🔍 Verifica connessione a: ${ApiConfig.baseUrl}/health');
       final response = await http
           .get(Uri.parse('${ApiConfig.baseUrl}/health'))
           .timeout(Duration(seconds: 5));
+      print('✅ Risposta health: ${response.statusCode}');
+      print('📄 Body: ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
+      print('❌ Errore connessione: $e');
       return false;
     }
   }
-
-  // ===== METODI PER FERIE =====
+  // ===== METODI PER FERIE E NOTIFICHE =====
 
   static Future<Map<String, dynamic>> getStatisticheFerie(int dipendenteId) async {
     try {
@@ -191,8 +194,6 @@ class ApiService {
     }
   }
 
-  // ===== METODI PER NOTIFICHE =====
-
   static Future<List<Map<String, dynamic>>> getNotificheDipendente(int dipendenteId) async {
     try {
       final response = await http
@@ -248,4 +249,58 @@ class ApiService {
       return false;
     }
   }
+
+
+// ===== METODI PER FERIE =====
+
+  static Future<Map<String, dynamic>> getStatisticheFerie(
+    int dipendenteId,
+  ) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/ferie/statistiche/$dipendenteId'),
+            headers: {'x-api-token': ApiConfig.apiToken},
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {};
+    } cat…taInizio,
+    required String dataFine,
+    String? note,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/ferie'),
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-token': ApiConfig.apiToken,
+            },
+            body: jsonEncode({
+              'dipendente_id': dipendenteId,
+              'tipo': tipo,
+              'data_inizio': dataInizio,
+              'data_fine': dataFine,
+              'note': note,
+              'stato': 'richiesta',
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'successo': false, 'errore': 'Errore server'};
+    } catch (e) {
+      print('Errore richiesta ferie: $e');
+      return {'successo': false, 'errore': e.toString()};
+    }
+  }
+
+
+
 }

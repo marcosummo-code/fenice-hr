@@ -16,6 +16,11 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'mappa_screen.dart';
+import 'notifiche_screen.dart';
+import 'ferie_screen.dart';
+
+
 
 class HomeScreen extends StatefulWidget {
   final Dipendente dipendente;
@@ -489,6 +494,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => FerieScreen(dipendente: widget.dipendente),
+                ),
+              );
+            },
+          ),
+// Mappa
+          IconButton(
+            icon: const Icon(Icons.map),
+            tooltip: 'Mappa timbrature',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      MappaScreen(dipendente: widget.dipendente),
                 ),
               );
             },

@@ -46,7 +46,8 @@ dependencies:
   excel: ^4.0.2  # <-- AGGIUNGI
   path_provider: ^2.1.2  # <-- AGGIUNGI
   share_plus: ^13.2.0  # <-- AGGIUNGI (per condividere il file)
-
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 
   # The following adds the Cupertino Icons font to your application.
