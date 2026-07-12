@@ -24,6 +24,9 @@ jobs:
         flutter --version
         dart --version
       
+    - name: Inizializza piattaforma iOS
+      run: flutter create --platforms=ios .
+      
     - name: Installa dipendenze
       run: flutter pub get
       
