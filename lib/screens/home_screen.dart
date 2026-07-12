@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _ultimaTimbraturaTipo;
   DateTime? _ultimaTimbraturaData;
   int _notificheNonLette = 0;
+  int _turniCompletatiOggi = 0;
 
   @override
   void initState() {
@@ -77,14 +78,20 @@ class _HomeScreenState extends State<HomeScreen> {
       widget.dipendente.id,
       oggi,
     );
+    final turni = await DatabaseService.contaTurniCompletatiOggi(
+      widget.dipendente.id,
+      oggi,
+    );
 
     if (mounted) {
       setState(() {
         _ultimaTimbraturaTipo = ultima?.tipo;
         _ultimaTimbraturaData = ultima?.dataOra;
+        _turniCompletatiOggi = turni;
       });
     }
   }
+
 
   Future<void> _loadNotificheCount() async {
     final count = await ApiService.contaNotificheNonLette(widget.dipendente.id);
@@ -612,7 +619,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Colors.green,
                     Icons.login,
                     () => _timbra('entrata'),
-                    enabled: _ultimaTimbraturaTipo == null,
+                    enabled: _ultimaTimbraturaTipo == null ||
+                        _ultimaTimbraturaTipo == 'uscita',
+
                   ),
                   _buildTimbraButton(
                     'USCITA',
@@ -715,10 +724,14 @@ class _HomeScreenState extends State<HomeScreen> {
       color = Colors.blue;
       descrizione = 'Ripresa alle ${DateFormat('HH:mm').format(_ultimaTimbraturaData!)}';
     } else if (_ultimaTimbraturaTipo == 'uscita') {
-      stato = 'Giornata terminata';
-      icon = Icons.check_circle;
+      stato = 'Turno terminato';
+      icon = Icons.pause_circle_outline;
       color = Colors.red;
-      descrizione = 'Uscita alle ${DateFormat('HH:mm').format(_ultimaTimbraturaData!)}';
+      final turnoText = _turniCompletatiOggi > 1
+          ? 'Turno $_turniCompletatiOggi completato • '
+          : '';
+      descrizione =
+          '${turnoText}Uscita alle ${DateFormat('HH:mm').format(_ultimaTimbraturaData!)}\nPremi ENTRATA per iniziare un nuovo turno';
     } else {
       stato = 'Stato sconosciuto';
       icon = Icons.help;

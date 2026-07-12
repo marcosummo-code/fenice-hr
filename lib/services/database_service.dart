@@ -186,6 +186,28 @@ class DatabaseService {
     return Timbratura.fromLocalJson(maps.first);
   }
 
+  // Conta i turni completati oggi (numero di USCITE)
+  static Future<int> contaTurniCompletatiOggi(
+    int dipendenteId,
+    DateTime data,
+  ) async {
+    final db = await database;
+    final dataInizio = DateTime(data.year, data.month, data.day, 0, 0, 0);
+    final dataFine = DateTime(data.year, data.month, data.day, 23, 59, 59);
+
+    final result = await db.rawQuery('''
+      SELECT COUNT(*) as count FROM timbrature
+      WHERE dipendente_id = ? 
+      AND data_ora >= ? AND data_ora <= ?
+      AND tipo = 'uscita'
+    ''', [
+      dipendenteId,
+      dataInizio.toIso8601String(),
+      dataFine.toIso8601String(),
+    ]);
+
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 
 
 
