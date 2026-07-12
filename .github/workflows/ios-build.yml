@@ -3,7 +3,7 @@ name: iOS Build
 on:
   push:
     branches: [ master, main ]
-  workflow_dispatch:  # Permette avvio manuale
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -16,17 +16,20 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.24.0'
+        flutter-version: '3.27.4'
         channel: 'stable'
         cache: true
         
+    - name: Flutter version
+      run: flutter --version
+      
     - name: Installa dipendenze
       run: flutter pub get
       
     - name: Configura iOS
       run: |
         cd ios
-        pod install
+        pod install --repo-update
         cd ..
         
     - name: Build iOS (senza firma)
